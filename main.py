@@ -1,148 +1,349 @@
-import serial
-from threading import Thread
-import playsound
-from pynput.keyboard import Key, Controller
+from PyQt5 import QtWidgets, uic
+from PyQt5.QtCore import Qt
+import pyperclip
+import sys
 import json
-import os
-import time
 
+class Ui(QtWidgets.QMainWindow):
+    def __init__(self):
+        super(Ui, self).__init__()
+        uic.loadUi('configurator.ui', self)
+        self.cfg = None
+        self.current_cfg = None
 
-keyboard = Controller()
+        self.help = self.findChild(QtWidgets.QCommandLinkButton, "commandLinkButton")
+        self.debug = self.findChild(QtWidgets.QCommandLinkButton, "commandLinkButton_2")
+        self.open_config = self.findChild(QtWidgets.QPushButton, "pushButton")
+        self.file_name_text = self.findChild(QtWidgets.QLabel, "label_3")
+        self.action_name = self.findChild(QtWidgets.QLineEdit, "lineEdit")
+        self.action = self.findChild(QtWidgets.QComboBox, "comboBox")
+        self.table = self.findChild(QtWidgets.QTableWidget, "tableWidget")
+        self.save_btn = self.findChild(QtWidgets.QPushButton, "pushButton_2")
 
+        self.table.resizeColumnsToContents()
 
-# ====== SETTINGS ======
-com_port = "COM5"
-cfg = "matrix.json"
+        self.help.clicked.connect(self.show_help)
+        self.debug.clicked.connect(self.show_debug)
+        self.open_config.clicked.connect(self.open_cfg)
+        self.save_btn.clicked.connect(self.save_cfg)
 
+        self.action.currentTextChanged.connect(self.setup_table)
+        self.table.currentItemChanged.connect(self.setup_table)
 
-try:
-    s = serial.Serial(com_port)
-except:
-    print("Please configure COM port")
-    exit()
+        self.show()
 
-try:
-    file = open(cfg)
-    matrix = json.loads(file.read())
-    file.close()
-except:
-    print("Please configure actions with \"NVcoder Stream Deck actions configurator\"")
-    exit()
-
-def play_sound(path):
-    playsound.playsound(path)
-
-valid_keys = {
-    "alt": Key.alt,
-    "alt_l": Key.alt_l,
-    "alt_r": Key.alt_r,
-    "backspace": Key.backspace,
-    "caps_lock": Key.caps_lock,
-    "cmd": Key.cmd,
-    "cmd_l": Key.cmd_l,
-    "cmd_r": Key.cmd_r,
-    "ctrl": Key.ctrl,
-    "ctrl_l": Key.ctrl_l,
-    "ctrl_r": Key.ctrl_r,
-    "delete": Key.delete,
-    "down": Key.down,
-    "end": Key.end,
-    "enter": Key.enter,
-    "esc": Key.esc,
-    "f1": Key.f1,
-    "f2": Key.f2,
-    "f3": Key.f3,
-    "f4": Key.f4,
-    "f5": Key.f5,
-    "f6": Key.f6,
-    "f7": Key.f7,
-    "f8": Key.f8,
-    "f9": Key.f9,
-    "f10": Key.f10,
-    "f11": Key.f11,
-    "f12": Key.f12,
-    "f13": Key.f13,
-    "f14": Key.f14,
-    "f15": Key.f15,
-    "f16": Key.f16,
-    "f17": Key.f17,
-    "f18": Key.f18,
-    "f19": Key.f19,
-    "f20": Key.f20,
-    "home": Key.home,
-    "insert": Key.insert,
-    "left": Key.left,
-    "menu": Key.menu,
-    "num_lock": Key.num_lock,
-    "page_down": Key.page_down,
-    "page_up": Key.page_up,
-    "pause": Key.pause,
-    "print_screen": Key.print_screen,
-    "right": Key.right,
-    "scroll_lock": Key.scroll_lock,
-    "shift": Key.shift,
-    "shift_l": Key.shift_l,
-    "shift_r": Key.shift_r,
-    "space": Key.space,
-    "tab": Key.tab,
-    "up": Key.up,
-}
-
-def press(key):
-    keyboard.press(key)
-    time.sleep(0.05)
-    keyboard.release(key)
-
-def key(key):
-    if key[:1] == ";":
-        Thread(target=press, kwargs={"key": valid_keys[key[1:]]})
-    else:
-        Thread(target=press, kwargs={"key": key})
-
-def combo(combo):
-    for key in combo:
-        if key[:1] == ";":
-            keyboard.press(valid_keys[key[1:]])
+    def open_file_dialog(self):
+        options = QtWidgets.QFileDialog.Options()
+        options |= QtWidgets.QFileDialog.DontUseNativeDialog
+        file_name, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open config file", "", "Json files (*.json)", options=options)
+        if file_name:
+            return file_name
         else:
-            keyboard.press(key)
+            return False
 
-    time.sleep(0.05)
+    def setup_table(self):
+        index = self.action.currentIndex()
 
-    for key in combo:
-        if key[:1] == ";":
-            keyboard.release(valid_keys[key[1:]])
+        indexes = [
+            {
+                "columns":[
+                    "Name",
+                    "Value",
+                ],
+                "rows":[
+                    "Command"
+                ]
+            },
+            {
+                "columns": [
+                    "Name",
+                    "Value",
+                ],
+                "rows": [
+                    "Path"
+                ]
+            },
+            {
+                "columns": [
+                    "Name",
+                    "Value",
+                ],
+                "rows": [
+                    "Key"
+                ]
+            },
+            {
+                "columns": [
+                    "Name",
+                    "Value",
+                ],
+                "rows": [
+                    "Sequence"
+                ]
+            },
+            {
+                "columns": [
+                    "Name",
+                    "Value",
+                ],
+                "rows": [
+                    "Text"
+                ]
+            },
+            {
+                "columns": [
+                    "Name",
+                    "Value",
+                ],
+                "rows": [
+                    "Function"
+                ]
+            }
+        ]
+
+        self.table.setColumnCount(len(indexes[index]["columns"]))
+        self.table.setRowCount(len(indexes[index]["rows"]))
+
+        self.table.setHorizontalHeaderLabels(indexes[index]["columns"])
+
+        for i in range(len(indexes[index]["rows"])):
+            self.table.setItem(i, 0, QtWidgets.QTableWidgetItem(indexes[index]["rows"][i]))
+            cell_item = self.table.item(i, 0)
+            cell_item.setFlags(cell_item.flags() ^ Qt.ItemIsEditable)
+
+    def error(self, title, text):
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Critical)
+        msg.setText(text)
+        msg.setWindowTitle(title)
+        msg.exec_()
+
+    def open_cfg(self):
+        file_name = self.open_file_dialog()
+        if file_name:
+            self.cfg = file_name
         else:
-            keyboard.release(key)
+            self.error("Error!", "Invalid file!")
+            return
 
-def exec_cmd(cmd):
-    os.system(cmd)
+        file = open(self.cfg)
+        self.current_cfg = file.read()
+        file.close()
 
-while True:
-    res = s.read().decode('UTF-8')
-    try:
-        if res in matrix:
-            if matrix[res]["call"] == "exec_cmd":
-                cmd = matrix[res]["params"]["cmd"]
-                Thread(target=exec_cmd, kwargs={"cmd": cmd}).start()
-            elif matrix[res]["call"] == "playsound":
-                path = matrix[res]["params"]["path"]
-                Thread(target=play_sound, kwargs={"path": path}).start()
-            elif matrix[res]["call"] == "press":
-                key_ = matrix[res]["params"]["key"]
-                key(key_)
-            elif matrix[res]["call"] == "combo":
-                seq = matrix[res]["params"]["combo"]
-                combo_ = seq.split("|")
-                combo(combo_)
-            elif matrix[res]["call"] == "type":
-                text = matrix[res]["params"]["text"]
-                keyboard.type(text)
-            elif matrix[res]["call"] == "exec_py":
-                try:
-                    code = matrix[res]["params"]["def"]
-                    exec(code)
-                except:
+        self.ready()
+
+        try:
+            self.old_cfg = json.loads(self.current_cfg)
+        except:
+            self.error("Error!", "Unable to read old configuration!")
+            self.old_cfg = {}
+
+    def set_enable(self, state):
+        self.table.setEnabled(state)
+        self.action_name.setEnabled(state)
+        self.action.setEnabled(state)
+
+    def ready(self):
+        if self.cfg:
+            self.set_enable(True)
+            name = self.cfg.split('/')
+            name.reverse()
+            self.file_name_text.setText(name[0])
+            self.setup_table()
+        else:
+            self.set_enable(False)
+
+    def new_action(self):
+        actions = [
+            {
+                "call": "exec_cmd",
+                "params": [
+                    "cmd"
+                ],
+            },
+            {
+                "call": "playsound",
+                "params": [
+                    "path"
+                ],
+            },
+            {
+                "call": "press",
+                "params": [
+                    "key"
+                ],
+            },
+            {
+                "call": "combo",
+                "params": [
+                    "combo"
+                ],
+            },
+            {
+                "call": "type",
+                "params": [
+                    "text"
+                ],
+            },
+            {
+                "call": "exec_py",
+                "params": [
+                    "def"
+                ],
+            },
+        ]
+
+        action_name = self.action_name.text()
+        action = actions[self.action.currentIndex()]["call"]
+        params = {}
+
+        full_action = {}
+
+        for i in range(len(actions[self.action.currentIndex()]["params"])):
+            try:
+                value = str(self.table.item(i, 1).text())
+                params[actions[self.action.currentIndex()]["params"][i]] = value
+            except:
+                params[actions[self.action.currentIndex()]["params"][i]] = ""
+
+        valid_keys = [
+            "alt",
+            "alt_l",
+            "alt_r",
+            "backspace",
+            "caps_lock",
+            "cmd",
+            "cmd_l",
+            "cmd_r",
+            "ctrl",
+            "ctrl_l",
+            "ctrl_r",
+            "delete",
+            "down",
+            "end",
+            "enter",
+            "esc",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f5",
+            "f6",
+            "f7",
+            "f8",
+            "f9",
+            "f10",
+            "f11",
+            "f12",
+            "f13",
+            "f14",
+            "f15",
+            "f16",
+            "f17",
+            "f18",
+            "f19",
+            "f20",
+            "home",
+            "insert",
+            "left",
+            "menu",
+            "num_lock",
+            "page_down",
+            "page_up",
+            "pause",
+            "print_screen",
+            "right",
+            "scroll_lock",
+            "shift",
+            "shift_l",
+            "shift_r",
+            "space",
+            "tab",
+            "up",
+        ]
+
+        # check 1
+        if action == "press":
+            if params["key"] == "":
+                self.error("Error!", "Invalid key!")
+                return
+            elif params["key"][:1] == ";":
+                if params["key"][1:] in valid_keys:
                     pass
+                else:
+                    self.error("Error!", "Invalid key!")
+                    return
+            elif params["key"][:1] != ";":
+                if len(params["key"]) != 1:
+                    self.error("Error!", "Invalid key!")
+                    return
 
-    except Exception as e:
-        print(f"Error: {e}")
+        # check 2
+        if action == "combo":
+            combo = params["combo"]
+
+            try:
+                combo_ = combo.split("|")
+            except:
+                self.error("Error!", "Invalid keys sequence!")
+                return
+
+            if len(combo_) < 2:
+                self.error("Error!", "Invalid keys sequence!")
+                return
+
+            for key in combo_:
+                if key == "":
+                    self.error("Error!", "Invalid key!")
+                    return
+                elif key[:1] == ";":
+                    if key[1:] in valid_keys:
+                        pass
+                    else:
+                        self.error("Error!", "Invalid key!")
+                        return
+                elif key[:1] != ";":
+                    if len(key) != 1:
+                        self.error("Error!", "Invalid key!")
+                        return
+
+        # check 3
+        if action_name == "":
+            self.error("Error!", "Invalid action name!")
+            return
+
+        full_action["call"] = action
+        full_action["params"] = params
+
+        return full_action, action_name
+
+    def save_cfg(self):
+        new_action, name = self.new_action()
+
+        self.old_cfg[name] = new_action
+
+        print(self.old_cfg)
+
+        file = open(self.cfg, "w")
+        file.write(json.dumps(self.old_cfg))
+        file.close()
+
+
+    def show_debug(self):
+        msg = QtWidgets.QMessageBox()
+        msg.setText(f"Debug: \n{self.cfg}\n{self.current_cfg}")
+        msg.setWindowTitle("Debug")
+        msg.exec_()
+
+    def show_help(self):
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Question)
+        msg.setText("For help visit our github page: \nhttps://github.com/NVcoder24/NVcoder-stream-deck \n(link copied to clipboard)")
+        msg.setWindowTitle("Help")
+        pyperclip.copy('https://github.com/NVcoder24/NVcoder-stream-deck')
+        msg.exec_()
+
+
+app = QtWidgets.QApplication(sys.argv)
+window = Ui()
+app.exec_()
